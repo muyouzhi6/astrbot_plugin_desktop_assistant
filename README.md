@@ -1,4 +1,4 @@
-# 🖥️ AstrBot 桌面助手服务端插件 (Server Plugin)
+# 🖥️ AstrBot 桌面助手服务端插件 (Server Plugin)（兼容云服务器Astrbot配合本地客户端使用）
 
 [![AstrBot](https://img.shields.io/badge/AstrBot-v3.0%2B-purple)](https://github.com/Soulter/AstrBot)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
@@ -49,6 +49,7 @@ pip install -r astrbot_plugin_desktop_assistant/requirements.txt
 ## 📄 许可证
 
 本项目采用 MIT 许可证。
+
 
 
 
