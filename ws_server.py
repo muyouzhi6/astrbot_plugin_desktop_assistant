@@ -89,6 +89,20 @@ class WebSocketServer:
         Args:
             websocket: WebSocket 连接
         """
+        # 获取客户端地址（用于日志）
+        client_address = "unknown"
+        try:
+            if hasattr(websocket, 'remote_address'):
+                client_address = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
+            elif hasattr(websocket, 'transport'):
+                peername = websocket.transport.get_extra_info('peername')
+                if peername:
+                    client_address = f"{peername[0]}:{peername[1]}"
+        except Exception:
+            pass
+            
+        logger.info(f"📡 WebSocket 新连接请求: 来自 {client_address}")
+        
         # 解析查询参数
         # 从 websocket.path 或 websocket.request.path 获取路径
         session_id = None
@@ -137,8 +151,19 @@ class WebSocketServer:
             
     async def _register_connection(self, websocket, session_id: str):
         """注册客户端连接"""
+        # 获取客户端地址
+        client_address = "unknown"
+        try:
+            if hasattr(websocket, 'remote_address'):
+                client_address = f"{websocket.remote_address[0]}:{websocket.remote_address[1]}"
+        except Exception:
+            pass
+            
         self.client_manager.active_connections[session_id] = websocket
-        logger.info(f"✅ 客户端已连接: session_id={session_id[:20]}...")
+        logger.info(f"✅ 客户端已连接:")
+        logger.info(f"   - 来源地址: {client_address}")
+        logger.info(f"   - Session ID: {session_id[:20]}...")
+        logger.info(f"   - 当前连接数: {len(self.client_manager.active_connections)}")
         
         # 发送欢迎消息
         try:
@@ -154,7 +179,8 @@ class WebSocketServer:
         """注销客户端连接"""
         if session_id in self.client_manager.active_connections:
             del self.client_manager.active_connections[session_id]
-            logger.info(f"客户端已断开: session_id={session_id[:20]}...")
+            logger.info(f"❌ 客户端已断开: session_id={session_id[:20]}...")
+            logger.info(f"   - 剩余连接数: {len(self.client_manager.active_connections)}")
             
     async def _handle_message(self, websocket, session_id: str, message: str):
         """
