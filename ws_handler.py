@@ -255,8 +255,7 @@ class ClientManager:
         self._pending_screenshot_requests[request_id] = request
         
         # 创建 Future 用于等待响应
-        loop = asyncio.get_event_loop()
-        future: asyncio.Future = loop.create_future()
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
         self._screenshot_futures[request_id] = future
         
         try:

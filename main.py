@@ -18,7 +18,8 @@ from typing import Optional
 
 from astrbot import logger
 from astrbot.api import star, llm_tool
-from astrbot.api.event import AstrMessageEvent, MessageChain
+from astrbot.api.event import AstrMessageEvent, MessageChain, filter
+from astrbot.api.event.filter import PermissionType
 from astrbot.api.message_components import Image, Plain
 from astrbot.api.star import Context
 from astrbot.core.star.register import register_command
@@ -39,6 +40,7 @@ from .services.proactive_dialog import (
     TriggerEvent,
     TriggerType,
 )
+from .services.vision_analyzer import VisionAnalyzer, VisionAnalysisResult
 from .ws_handler import ClientManager, MessageHandler, ClientDesktopState, ScreenshotResponse
 from .ws_server import StandaloneWebSocketServer
 
@@ -72,12 +74,15 @@ class Main(star.Star):
     1. 平台适配器模式：桌面监控和主动对话
     2. 命令模式：支持通过 /screenshot 命令远程截图
     3. 独立端口模式：在端口 6190 运行 WebSocket 服务器
+    4. LLM 视觉分析：支持 LLM 主动调用截图并分析内容
     """
     
-    def __init__(self, context: star.Context) -> None:
+    def __init__(self, context: star.Context, config: dict) -> None:
+        super().__init__(context)
         global ws_server
         
         self.context = context
+        self.config = config
         
         # 从配置中读取 WebSocket 服务器设置（如果有的话）
         ws_host = WS_DEFAULT_HOST
@@ -94,6 +99,17 @@ class Main(star.Star):
         
         # 将服务器引用设置到客户端管理器
         client_manager.set_ws_server(ws_server)
+        
+        # 从配置读取识图模式设置（直接从 config 读取，符合 _conf_schema.json 规范）
+        vision_mode = config.get("vision_mode", "auto")
+        dedicated_provider_id = config.get("dedicated_provider_id", "")
+        
+        # 初始化视觉分析器
+        self.vision_analyzer = VisionAnalyzer(
+            context=context,
+            vision_mode=vision_mode,
+            dedicated_provider_id=dedicated_provider_id or None,
+        )
         
         logger.info("桌面悬浮球助手插件已加载（独立端口模式）")
         
@@ -114,8 +130,9 @@ class Main(star.Star):
     # ========================================================================
     
     @register_command("screenshot", alias={"截图", "jietu"})
+    @filter.permission_type(PermissionType.ADMIN)
     async def screenshot_command(self, event: AstrMessageEvent):
-        """远程截图：通过 QQ 发送此命令让桌面端执行截图并返回图片"""
+        """远程截图：通过 QQ 发送此命令让桌面端执行截图并返回图片（仅管理员可用）"""
         logger.info("📸 收到截图命令，正在处理...")
         
         try:
@@ -151,7 +168,6 @@ class Main(star.Star):
                 yield result
 
         except Exception as e:
-            print(f"[DesktopAssistant] 截图命令执行异常: {e}")
             logger.error(f"截图命令执行异常: {e}")
             traceback.print_exc()
             yield event.plain_result(f"❌ 截图命令执行异常: {str(e)}")
@@ -159,21 +175,96 @@ class Main(star.Star):
     @llm_tool("view_desktop_screen")
     async def view_desktop_screen_tool(self, event: AstrMessageEvent):
         """
-        查看用户当前电脑桌面屏幕内容。
+        获取用户电脑桌面的截图并直接发送给用户。
         
-        当你需要了解用户正在做什么、查看用户屏幕上的内容、或者需要根据用户当前的操作提供帮助时，
-        可以调用此函数来获取用户桌面的实时截图。
+        当用户明确要求"发送截图"、"截个图给我看看"时使用此函数。
+        此函数会将截图直接发送给用户，而不会返回内容描述。
+        
+        注意：如果你需要"看"屏幕内容来帮助用户，请使用 analyze_desktop_screen 工具。
         
         使用场景举例：
-        - 用户询问"看看我在干什么"
-        - 用户说"帮我看看这个怎么操作"
-        - 用户说"屏幕上显示的是什么"
-        - 需要根据用户当前操作提供上下文相关的帮助
+        - 用户说"截个图发给我"
+        - 用户说"把屏幕截图发过来"
+        - 用户需要保存当前屏幕状态
         
-        返回：桌面截图图片
+        返回：桌面截图图片（直接发送给用户）
+        
+        权限要求：仅管理员可用
         """
+        # 检查管理员权限
+        if not event.is_admin():
+            yield event.plain_result("❌ 权限不足：截图功能仅限管理员使用，以保护用户隐私。")
+            return
+        
         async for result in self._do_remote_screenshot(event, None, silent=False):
             yield result
+    
+    @llm_tool("analyze_desktop_screen")
+    async def analyze_desktop_screen_tool(self, event: AstrMessageEvent) -> str:
+        """
+        分析用户当前电脑桌面屏幕内容，返回屏幕上显示内容的描述。
+        
+        当你需要了解用户正在做什么、理解屏幕上的内容时，调用此函数。
+        此函数会获取桌面截图并分析其内容，返回文字描述供你参考。
+        
+        注意：此函数不会向用户发送截图，只会返回内容描述。
+        如果用户明确要求"发送截图"，请使用 view_desktop_screen 工具。
+        
+        使用场景举例：
+        - 用户问"我在干什么"或"我桌面上是什么"
+        - 用户说"帮我看看这个怎么操作"
+        - 用户说"你能看到我的屏幕吗"
+        - 需要根据用户当前操作提供上下文相关的帮助
+        
+        返回：屏幕内容的文字描述
+        
+        权限要求：仅管理员可用
+        """
+        # 检查管理员权限
+        if not event.is_admin():
+            return "❌ 权限不足：截图功能仅限管理员使用，以保护用户隐私。"
+        
+        logger.info("🔍 收到桌面分析请求，正在获取截图...")
+        
+        try:
+            # 1. 检查 WebSocket 服务器状态
+            if not ws_server or not ws_server.is_running:
+                return "❌ 无法分析桌面：WebSocket 服务器未运行。请检查服务器日志获取详细错误信息。"
+            
+            # 2. 检查客户端连接
+            connected_clients = client_manager.get_connected_client_ids()
+            if not connected_clients:
+                return "❌ 无法分析桌面：没有已连接的桌面客户端。请确保桌面端程序已启动并连接到服务器。"
+            
+            # 3. 获取截图
+            response: ScreenshotResponse = await client_manager.request_screenshot(
+                session_id=None,
+                timeout=30.0
+            )
+            
+            if not response.success or not response.image_path:
+                error_msg = response.error_message or "未知错误"
+                return f"❌ 无法获取截图: {error_msg}"
+            
+            logger.info(f"📸 截图已获取: {response.image_path}")
+            
+            # 4. 使用多模态 LLM 分析截图
+            umo = event.unified_msg_origin
+            analysis_result: VisionAnalysisResult = await self.vision_analyzer.analyze_desktop_screenshot(
+                image_path=response.image_path,
+                umo=umo,
+            )
+            
+            if analysis_result.success:
+                logger.info("✅ 桌面分析完成")
+                return analysis_result.description
+            else:
+                return f"❌ 分析失败: {analysis_result.error_message}"
+                
+        except Exception as e:
+            logger.error(f"桌面分析异常: {e}")
+            traceback.print_exc()
+            return f"❌ 分析过程出错: {str(e)}"
     
     async def _do_remote_screenshot(
         self,

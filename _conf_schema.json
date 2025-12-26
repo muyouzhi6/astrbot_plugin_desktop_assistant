@@ -1,0 +1,19 @@
+{
+    "vision_mode": {
+        "description": "识图模式",
+        "hint": "选择使用哪个模型进行截图分析。auto=自动检测（推荐），chat=使用对话模型，dedicated=使用独立模型",
+        "type": "string",
+        "options": [
+            "auto",
+            "chat",
+            "dedicated"
+        ],
+        "default": "auto"
+    },
+    "dedicated_provider_id": {
+        "description": "独立识图模型 Provider ID",
+        "hint": "当识图模式为 dedicated 时生效，填写支持多模态的 LLM Provider ID（如 openai_gpt4o）",
+        "type": "string",
+        "default": ""
+    }
+}
