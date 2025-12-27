@@ -139,6 +139,52 @@ astrbot plugin install astrbot_plugin_desktop_assistant
 3. 填写 AstrBot 管理员账号密码
 4. 保存，开始陪伴之旅 🎉
 
+---
+
+## ⚙️ 配置说明
+
+### 完整配置项
+
+```yaml
+# 外观设置
+appearance:
+  avatar_path: ""        # 自定义头像路径
+  ball_size: 64          # 悬浮球尺寸（32-128）
+  ball_opacity: 0.9      # 透明度（0.3-1.0）
+  theme: "auto"          # 主题：auto/light/dark
+
+# 对话窗口
+chat_window:
+  width: 400             # 窗口宽度
+  height: 600            # 窗口高度
+  font_size: 14          # 字体大小
+  show_timestamp: true   # 显示时间戳
+
+# 桌面监控
+desktop_monitor:
+  enable: false          # 启用定时截图
+  interval: 60           # 截图间隔（秒）
+
+# 主动对话
+proactive_dialog:
+  enable: false          # 启用主动对话
+  interval: 300          # 检查间隔（秒）
+
+# 语音设置
+voice:
+  enable_tts: true       # 启用语音播放
+  auto_play: false       # 自动播放语音
+
+# 快捷键
+hotkeys:
+  toggle_window: "Ctrl+Alt+A"  # 显示/隐藏窗口
+  screenshot: "Ctrl+Alt+S"     # 快速截图
+
+# 识图设置
+vision:
+  vision_provider_id: "" # 识图模型服务商ID
+  admin_only: true       # 仅管理员可截图
+```
 
 ---
 
@@ -254,6 +300,5 @@ MIT License
 *让 AI 真正成为你桌面上的伙伴*
 
 [报告问题](https://github.com/muyouzhi6/astrbot_plugin_desktop_assistant/issues) · [参与讨论](https://github.com/muyouzhi6/astrbot_plugin_desktop_assistant/discussions)
-
 
 </div>

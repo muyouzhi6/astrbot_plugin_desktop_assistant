@@ -31,7 +31,11 @@ from astrbot.core.platform import (
     PlatformMetadata,
 )
 from astrbot.core.platform.astr_message_event import MessageSesion
-from astrbot.core.platform.register import register_platform_adapter
+from astrbot.core.platform.register import (
+    register_platform_adapter,
+    platform_registry,
+    platform_cls_map,
+)
 
 from .services.desktop_monitor import DesktopMonitorService, DesktopState
 from .services.proactive_dialog import (
@@ -100,6 +104,9 @@ class Main(star.Star):
         # 将服务器引用设置到客户端管理器
         client_manager.set_ws_server(ws_server)
         
+        # 设置配置同步回调
+        message_handler.on_config_sync = self._handle_config_sync
+        
         # 从配置读取识图模式设置（直接从 config 读取，符合 _conf_schema.json 规范）
         vision_mode = config.get("vision_mode", "auto")
         dedicated_provider_id = config.get("dedicated_provider_id", "")
@@ -116,6 +123,37 @@ class Main(star.Star):
         # 启动 WebSocket 服务器（在后台任务中启动）
         asyncio.create_task(self._start_ws_server())
     
+    async def terminate(self):
+        """插件终止时的清理操作"""
+        global ws_server
+        
+        logger.info("正在清理桌面悬浮球助手插件...")
+        
+        # 停止 WebSocket 服务器
+        if ws_server:
+            try:
+                await ws_server.stop()
+                ws_server = None
+            except Exception as e:
+                logger.error(f"停止 WebSocket 服务器失败: {e}")
+        
+        # 从全局注册表中移除平台适配器，避免重载时的冲突
+        adapter_name = "desktop_assistant"
+        
+        # 从 platform_cls_map 中移除
+        if adapter_name in platform_cls_map:
+            del platform_cls_map[adapter_name]
+            logger.debug(f"已从 platform_cls_map 中移除适配器: {adapter_name}")
+        
+        # 从 platform_registry 中移除
+        for pm in platform_registry[:]:  # 使用切片复制列表，避免迭代时修改
+            if pm.name == adapter_name:
+                platform_registry.remove(pm)
+                logger.debug(f"已从 platform_registry 中移除适配器: {adapter_name}")
+                break
+        
+        logger.info("桌面悬浮球助手插件清理完成")
+    
     async def _start_ws_server(self):
         """启动 WebSocket 服务器"""
         global ws_server
@@ -124,6 +162,49 @@ class Main(star.Star):
             success = await ws_server.start()
             if not success:
                 logger.error("WebSocket 服务器启动失败，远程截图功能将不可用")
+    
+    async def _handle_config_sync(self, session_id: str, config_data: dict):
+        """
+        处理客户端配置同步
+        
+        将客户端发送的配置应用到 AstrBot 核心配置。
+        
+        Args:
+            session_id: 客户端会话 ID
+            config_data: 客户端配置数据
+        """
+        try:
+            # 处理语音相关配置
+            voice_config = config_data.get("voice", {})
+            
+            if voice_config:
+                # 获取 AstrBot 核心配置
+                astrbot_config = self.context.get_config()
+                
+                # 同步 TTS dual_output 设置
+                if "dual_output" in voice_config:
+                    dual_output = voice_config["dual_output"]
+                    
+                    # 更新 AstrBot 核心的 provider_tts_settings
+                    if "provider_tts_settings" in astrbot_config:
+                        old_value = astrbot_config["provider_tts_settings"].get("dual_output", False)
+                        astrbot_config["provider_tts_settings"]["dual_output"] = dual_output
+                        
+                        logger.info(
+                            f"TTS dual_output 配置已同步: {old_value} -> {dual_output} "
+                            f"(来自客户端 {session_id[:16]}...)"
+                        )
+                    else:
+                        logger.warning("AstrBot 配置中未找到 provider_tts_settings")
+                
+                # 可以扩展其他配置项的同步
+                # if "enable_tts" in voice_config:
+                #     ...
+                
+        except Exception as e:
+            logger.error(f"处理配置同步失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     # ========================================================================
     # 命令处理器：远程截图

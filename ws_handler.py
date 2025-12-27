@@ -109,9 +109,22 @@ class ClientManager:
     - 消息发送（单发/广播）
     - 桌面状态管理
     - 截图请求/响应处理
+    - 连接健康监控
     
     这个类被 ws_server.py 中的 StandaloneWebSocketServer 使用。
+    
+    稳定性增强：
+    - 详细的连接状态检查
+    - 重试机制
+    - 连接质量监控
     """
+    
+    # 客户端活跃超时时间（秒）- 超过此时间未收到消息则认为客户端可能断开
+    CLIENT_INACTIVE_TIMEOUT = 120  # 2分钟
+    
+    # 截图重试配置
+    SCREENSHOT_MAX_RETRIES = 2  # 最大重试次数
+    SCREENSHOT_RETRY_DELAY = 1.0  # 重试延迟（秒）
     
     def __init__(self):
         # 存储客户端的最新桌面状态: session_id -> ClientDesktopState
@@ -130,6 +143,10 @@ class ClientManager:
         
         # WebSocket 服务器引用（由 main.py 设置）
         self._ws_server = None
+        
+        # 统计信息
+        self._screenshot_success_count = 0
+        self._screenshot_failure_count = 0
     
     def set_ws_server(self, ws_server):
         """设置 WebSocket 服务器引用"""
@@ -146,6 +163,83 @@ class ClientManager:
         if self._ws_server:
             return self._ws_server.get_connected_client_ids()
         return []
+    
+    def is_client_connected(self, session_id: str) -> bool:
+        """
+        检查指定客户端是否已连接且活跃
+        
+        Args:
+            session_id: 客户端会话 ID
+            
+        Returns:
+            客户端是否连接且活跃
+        """
+        if not self._ws_server:
+            return False
+        
+        # 使用服务器的连接状态检查
+        if hasattr(self._ws_server, 'is_client_connected'):
+            return self._ws_server.is_client_connected(session_id)
+        
+        # 回退到简单的列表检查
+        return session_id in self.get_connected_client_ids()
+    
+    def get_client_connection_info(self, session_id: str) -> dict:
+        """
+        获取客户端连接详细信息
+        
+        Args:
+            session_id: 客户端会话 ID
+            
+        Returns:
+            包含连接状态信息的字典
+        """
+        info = {
+            "session_id": session_id,
+            "connected": False,
+            "last_activity": None,
+            "has_state": False,
+            "heartbeat_count": 0,
+            "connection_quality": "unknown",
+        }
+        
+        if self._ws_server:
+            info["connected"] = session_id in self._ws_server.get_connected_client_ids()
+            
+            # 获取最后活跃时间
+            if hasattr(self._ws_server, 'get_client_last_activity'):
+                last_activity = self._ws_server.get_client_last_activity(session_id)
+                if last_activity > 0:
+                    info["last_activity"] = last_activity
+                    seconds_since = time.time() - last_activity
+                    info["seconds_since_activity"] = seconds_since
+                    
+                    # 评估连接质量
+                    if seconds_since < 30:
+                        info["connection_quality"] = "excellent"
+                    elif seconds_since < 60:
+                        info["connection_quality"] = "good"
+                    elif seconds_since < 120:
+                        info["connection_quality"] = "fair"
+                    else:
+                        info["connection_quality"] = "poor"
+            
+            # 获取服务器统计信息
+            if hasattr(self._ws_server, 'get_server_stats'):
+                stats = self._ws_server.get_server_stats()
+                conn_details = stats.get("connection_details", {})
+                if session_id in conn_details:
+                    client_stats = conn_details[session_id]
+                    info["heartbeat_count"] = client_stats.get("heartbeat_count", 0)
+        
+        # 检查是否有桌面状态
+        if session_id in self.client_states:
+            info["has_state"] = True
+            state = self.client_states[session_id]
+            if state.received_at:
+                info["state_age_seconds"] = (datetime.now() - state.received_at).total_seconds()
+        
+        return info
     
     async def send_message(self, session_id: str, message: dict) -> bool:
         """
@@ -211,14 +305,16 @@ class ClientManager:
     async def request_screenshot(
         self,
         session_id: Optional[str] = None,
-        timeout: float = 30.0
+        timeout: float = 30.0,
+        retry: bool = True
     ) -> ScreenshotResponse:
         """
-        请求客户端截图
+        请求客户端截图（带重试机制）
         
         Args:
             session_id: 目标客户端 session_id，为 None 则选择第一个可用客户端
             timeout: 超时时间（秒）
+            retry: 是否启用重试
             
         Returns:
             ScreenshotResponse 对象
@@ -228,15 +324,24 @@ class ClientManager:
         
         if session_id is None:
             if not connected_clients:
+                logger.warning("截图请求失败: 没有已连接的桌面客户端")
+                self._screenshot_failure_count += 1
                 return ScreenshotResponse(
                     request_id="",
                     session_id="",
                     success=False,
                     error_message="没有已连接的桌面客户端"
                 )
-            session_id = connected_clients[0]
+            # 选择连接质量最好的客户端
+            session_id = self._select_best_client(connected_clients)
+            logger.info(f"自动选择客户端: {session_id}")
+        
+        # 详细的连接状态检查
+        conn_info = self.get_client_connection_info(session_id)
         
         if session_id not in connected_clients:
+            logger.warning(f"截图请求失败: 客户端未连接 - {conn_info}")
+            self._screenshot_failure_count += 1
             return ScreenshotResponse(
                 request_id="",
                 session_id=session_id,
@@ -244,6 +349,91 @@ class ClientManager:
                 error_message=f"客户端未连接: {session_id}"
             )
         
+        # 检查连接质量
+        if conn_info.get("connection_quality") == "poor":
+            logger.warning(f"客户端连接质量较差，可能影响截图: {conn_info}")
+        
+        # 额外检查：验证连接是否真正活跃
+        if not self.is_client_connected(session_id):
+            logger.warning(f"截图请求失败: 客户端连接状态异常 - session_id={session_id}")
+            self._screenshot_failure_count += 1
+            return ScreenshotResponse(
+                request_id="",
+                session_id=session_id,
+                success=False,
+                error_message=f"客户端连接状态异常: {session_id}"
+            )
+        
+        # 执行截图请求（带重试）
+        max_attempts = self.SCREENSHOT_MAX_RETRIES + 1 if retry else 1
+        last_error = None
+        
+        for attempt in range(max_attempts):
+            if attempt > 0:
+                logger.info(f"截图重试第 {attempt} 次...")
+                await asyncio.sleep(self.SCREENSHOT_RETRY_DELAY)
+                
+                # 重试前再次检查连接
+                if not self.is_client_connected(session_id):
+                    logger.warning(f"重试前检测到客户端已断开: {session_id}")
+                    break
+            
+            response = await self._do_screenshot_request(session_id, timeout)
+            
+            if response.success:
+                self._screenshot_success_count += 1
+                logger.info(f"截图成功 (尝试 {attempt + 1}/{max_attempts})")
+                return response
+            else:
+                last_error = response.error_message
+                logger.warning(f"截图失败 (尝试 {attempt + 1}/{max_attempts}): {last_error}")
+        
+        self._screenshot_failure_count += 1
+        return ScreenshotResponse(
+            request_id="",
+            session_id=session_id,
+            success=False,
+            error_message=f"截图失败（已重试 {max_attempts} 次）: {last_error}"
+        )
+    
+    def _select_best_client(self, client_ids: List[str]) -> str:
+        """
+        选择连接质量最好的客户端
+        
+        Args:
+            client_ids: 候选客户端列表
+            
+        Returns:
+            选中的客户端 ID
+        """
+        if not client_ids:
+            return ""
+        
+        if len(client_ids) == 1:
+            return client_ids[0]
+        
+        # 按连接质量排序
+        quality_order = {"excellent": 0, "good": 1, "fair": 2, "poor": 3, "unknown": 4}
+        
+        def get_quality_score(client_id: str) -> int:
+            info = self.get_client_connection_info(client_id)
+            quality = info.get("connection_quality", "unknown")
+            return quality_order.get(quality, 5)
+        
+        sorted_clients = sorted(client_ids, key=get_quality_score)
+        return sorted_clients[0]
+    
+    async def _do_screenshot_request(self, session_id: str, timeout: float) -> ScreenshotResponse:
+        """
+        执行单次截图请求
+        
+        Args:
+            session_id: 目标客户端 session_id
+            timeout: 超时时间（秒）
+            
+        Returns:
+            ScreenshotResponse 对象
+        """
         # 创建请求
         request_id = str(uuid.uuid4())
         request = ScreenshotRequest(
@@ -260,14 +450,23 @@ class ClientManager:
         
         try:
             # 发送截图命令到客户端
-            await self.send_message(session_id, {
+            send_success = await self.send_message(session_id, {
                 "type": "command",
                 "command": "screenshot",
                 "request_id": request_id,
                 "params": {
-                    "type": "full"  # 全屏截图
+                    "type": "full",  # 全屏截图
+                    "timestamp": time.time()
                 }
             })
+            
+            if not send_success:
+                return ScreenshotResponse(
+                    request_id=request_id,
+                    session_id=session_id,
+                    success=False,
+                    error_message="发送截图命令失败"
+                )
             
             logger.info(f"已发送截图命令到客户端: session_id={session_id}, request_id={request_id}")
             
@@ -285,6 +484,8 @@ class ClientManager:
             )
         except Exception as e:
             logger.error(f"截图请求失败: {e}")
+            import traceback
+            traceback.print_exc()
             return ScreenshotResponse(
                 request_id=request_id,
                 session_id=session_id,
@@ -352,6 +553,24 @@ class ClientManager:
             future.set_result(response)
         
         return response
+    
+    def get_screenshot_stats(self) -> dict:
+        """
+        获取截图统计信息
+        
+        Returns:
+            包含成功/失败次数的字典
+        """
+        total = self._screenshot_success_count + self._screenshot_failure_count
+        success_rate = (self._screenshot_success_count / total * 100) if total > 0 else 0
+        
+        return {
+            "success_count": self._screenshot_success_count,
+            "failure_count": self._screenshot_failure_count,
+            "total_count": total,
+            "success_rate": f"{success_rate:.1f}%",
+            "pending_requests": len(self._pending_screenshot_requests)
+        }
 
 
 class MessageHandler:
@@ -370,6 +589,9 @@ class MessageHandler:
             client_manager: 客户端管理器实例
         """
         self.manager = client_manager
+        
+        # 配置同步回调（由 main.py 设置）
+        self.on_config_sync: Optional[Callable[[str, dict], Any]] = None
     
     async def handle_message(self, session_id: str, data: dict):
         """
@@ -397,6 +619,10 @@ class MessageHandler:
             if command == "screenshot":
                 response_data = data.get("data", {})
                 self.manager.handle_screenshot_response(session_id, response_data)
+        
+        elif msg_type == "config_sync":
+            # 处理客户端配置同步
+            await self._handle_config_sync(session_id, data)
                 
         elif msg_type == "state_sync":
             # 处理客户端状态同步（保留向后兼容）
@@ -425,12 +651,65 @@ class MessageHandler:
             "timestamp": state.timestamp,
         })
     
+    async def _handle_config_sync(self, session_id: str, data: dict):
+        """
+        处理客户端配置同步
+        
+        客户端在连接成功后会发送其保存的配置（如 TTS dual_output），
+        服务端需要将这些配置应用到 AstrBot 核心。
+        
+        Args:
+            session_id: 客户端会话 ID
+            data: 配置数据
+        """
+        config_data = data.get("data", {})
+        logger.info(f"收到客户端配置同步: session_id={session_id}, config={config_data}")
+        
+        # 触发配置同步回调（由 main.py 处理实际的配置应用）
+        if self.on_config_sync:
+            try:
+                result = self.on_config_sync(session_id, config_data)
+                if asyncio.iscoroutine(result):
+                    await result
+            except Exception as e:
+                logger.error(f"配置同步回调执行失败: {e}")
+        
+        # 发送确认
+        await self.manager.send_message(session_id, {
+            "type": "config_sync_ack",
+            "success": True,
+        })
+    
     def on_client_connect(self, session_id: str):
         """客户端连接回调"""
         logger.info(f"客户端已连接: session_id={session_id}")
+        # 记录连接时间
+        logger.debug(f"当前活跃客户端数: {self.manager.get_active_clients_count()}")
     
     def on_client_disconnect(self, session_id: str):
         """客户端断开回调"""
         logger.info(f"客户端已断开: session_id={session_id}")
+        
         # 清理客户端状态
         self.manager.remove_client_state(session_id)
+        
+        # 取消该客户端的所有待处理截图请求
+        cancelled_count = 0
+        for request_id, request in list(self.manager._pending_screenshot_requests.items()):
+            if request.session_id == session_id:
+                future = self.manager._screenshot_futures.get(request_id)
+                if future and not future.done():
+                    future.set_result(ScreenshotResponse(
+                        request_id=request_id,
+                        session_id=session_id,
+                        success=False,
+                        error_message="客户端已断开连接"
+                    ))
+                    cancelled_count += 1
+                self.manager._pending_screenshot_requests.pop(request_id, None)
+                self.manager._screenshot_futures.pop(request_id, None)
+        
+        if cancelled_count > 0:
+            logger.info(f"已取消 {cancelled_count} 个待处理的截图请求")
+        
+        logger.debug(f"剩余活跃客户端数: {self.manager.get_active_clients_count()}")
