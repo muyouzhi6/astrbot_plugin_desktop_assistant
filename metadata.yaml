@@ -2,8 +2,9 @@
 name: "astrbot_plugin_desktop_assistant"
 description: "AstrBot桌宠悬浮球（兼容云服务器Astrbot配合本地客户端使用），支持bot感知屏幕主动对话、tts语音自动播放、llm主动/通过指令查看自己电脑屏幕"
 author: "muyouzhi6"
-version: "1.0.5"
+version: "1.0.6"
 repo: "https://github.com/muyouzhi6/astrbot_plugin_desktop_assistant"
+
 
 
 
