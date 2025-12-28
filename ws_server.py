@@ -130,13 +130,16 @@ class StandaloneWebSocketServer:
         
         try:
             # 创建服务器 - 心跳参数与客户端保持一致
+            # max_size 设置为 50MB，支持高分辨率截图传输
             self._server = await serve(
                 self._handle_connection,
                 self.host,
                 self.port,
-                ping_interval=self.PING_INTERVAL,  # 心跳间隔 30 秒
-                ping_timeout=self.PING_TIMEOUT,    # 心跳超时 20 秒（增加容错）
+                ping_interval=self.PING_INTERVAL,  # 心跳间隔 20 秒
+                ping_timeout=self.PING_TIMEOUT,    # 心跳超时 40 秒（增加容错）
                 close_timeout=10,                   # 关闭超时 10 秒
+                max_size=50 * 1024 * 1024,         # 最大消息大小 50MB（支持高分辨率截图）
+                compression=None,                   # 禁用压缩以减少 CPU 开销
             )
             
             self._running = True
@@ -155,6 +158,7 @@ class StandaloneWebSocketServer:
             logger.info(f"   健康检查间隔: {self.HEALTH_CHECK_INTERVAL}s")
             logger.info(f"   服务端探测间隔: {self.SERVER_PING_INTERVAL}s")
             logger.info(f"   客户端超时时间: {self.CLIENT_INACTIVE_TIMEOUT}s")
+            logger.info(f"   最大消息大小: 50MB（支持高分辨率截图）")
             logger.info("=" * 60)
             
             return True
