@@ -721,9 +721,21 @@ class DesktopMessageEvent(AstrMessageEvent):
 class DesktopAssistantAdapter(Platform):
     """桌面悬浮球助手平台适配器"""
     
-    def __init__(self, platform_config: dict, event_queue: asyncio.Queue):
+    def __init__(
+        self,
+        platform_config: dict,
+        platform_settings: Optional[dict] = None,
+        event_queue: Optional[asyncio.Queue] = None,
+    ):
+        if event_queue is None and isinstance(platform_settings, asyncio.Queue):
+            event_queue = platform_settings
+            platform_settings = {}
+        if event_queue is None:
+            raise TypeError("event_queue is required")
+
         super().__init__(platform_config, event_queue)
         self.config = platform_config
+        self.settings = platform_settings or {}
         
         self._running = False
         self._pending_replies: dict[str, float] = {}
