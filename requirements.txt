@@ -1,11 +1,11 @@
-# AstrBot 桌面助手插件依赖  
-# 用于服务端 (AstrBot 插件)  
-  
-# 图像处理  
-Pillow>=9.0.0  
-  
-# 系统监控  
-psutil>=5.9.0  
-  
-# WebSocket 服务器（独立端口模式）  
-websockets>=12.0 
+# AstrBot desktop assistant plugin dependencies
+# Server side (AstrBot plugin)
+
+# Image processing
+Pillow>=9.0.0
+
+# System monitoring
+psutil>=5.9.0
+
+# Standalone WebSocket server mode
+websockets>=12.0
