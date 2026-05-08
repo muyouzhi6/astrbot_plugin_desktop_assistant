@@ -22,7 +22,8 @@
 
 桌宠包需要包含 `pet.json` 和 `spritesheet.webp`。在桌面客户端「设置 → 外观 → 宠物形象 → 添加宠物形象」里导入后，选择对应形象并保存即可。
 
-![桃桃与 CodexPet 自定义形象](docs/images/taotao-codexpet.svg)
+<img width="126" height="126" alt="image" src="https://github.com/user-attachments/assets/33288e02-3a83-441d-9c6f-40bf6883d7f8" />
+
 
 ### 🔐 适配 OpenAPI (API Key) 连接
 
