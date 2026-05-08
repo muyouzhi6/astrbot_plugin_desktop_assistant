@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="360" viewBox="0 0 920 360" role="img" aria-labelledby="title desc">
+  <title id="title">桃桃桌宠与 CodexPet 自定义形象</title>
+  <desc id="desc">展示默认桃桃形象和导入 CodexPet 兼容宠物包的入口。</desc>
+  <rect width="920" height="360" rx="24" fill="#111315"/>
+  <rect x="28" y="28" width="864" height="304" rx="18" fill="#1d2024" stroke="#30343a"/>
+  <text x="58" y="70" fill="#f5f7fb" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="28" font-weight="700">桌面形象: 默认桃桃, 也可以自己导入</text>
+  <text x="58" y="105" fill="#aeb6c2" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16">内置木有知制作的桃桃形象, 支持 CodexPet 兼容宠物包。</text>
+  <rect x="58" y="138" width="250" height="156" rx="14" fill="#272b31" stroke="#ff2d6f" stroke-width="3"/>
+  <text x="82" y="170" fill="#ffffff" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="18" font-weight="700">默认形象</text>
+  <circle cx="140" cy="226" r="48" fill="#ffc1d6"/>
+  <circle cx="116" cy="184" r="16" fill="#ffc1d6"/>
+  <circle cx="164" cy="184" r="16" fill="#ffc1d6"/>
+  <circle cx="124" cy="220" r="6" fill="#1f2733"/>
+  <circle cx="156" cy="220" r="6" fill="#1f2733"/>
+  <path d="M128 245 Q140 257 154 245" stroke="#1f2733" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <rect x="205" y="198" width="72" height="42" rx="21" fill="#ff2d6f"/>
+  <text x="222" y="225" fill="#fff" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="17" font-weight="700">桃桃</text>
+  <rect x="350" y="138" width="510" height="156" rx="14" fill="#15181c" stroke="#3a4048"/>
+  <text x="382" y="174" fill="#ffffff" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="20" font-weight="700">添加宠物形象</text>
+  <text x="382" y="210" fill="#c8d0dc" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16">选择包含 pet.json 和 spritesheet.webp 的 CodexPet 兼容包。</text>
+  <text x="382" y="238" fill="#c8d0dc" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16">导入后在设置 -> 外观 -> 宠物形象中选择, 保存后生效。</text>
+  <rect x="695" y="168" width="132" height="48" rx="24" fill="#2bcb70"/>
+  <text x="723" y="198" fill="#fff" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="17" font-weight="700">导入包</text>
+</svg>

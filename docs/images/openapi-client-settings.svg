@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="560" viewBox="0 0 920 560" role="img" aria-labelledby="title desc">
+  <title id="title">桌面客户端 OpenAPI 连接配置</title>
+  <desc id="desc">展示在设置面板中选择 OpenAPI API Key 认证方式并填写 API Key。</desc>
+  <rect width="920" height="560" rx="24" fill="#101112"/>
+  <rect x="36" y="32" width="848" height="496" rx="18" fill="#191b1f" stroke="#30343a"/>
+  <text x="64" y="75" fill="#f4f7fb" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="28" font-weight="700">设置 / 服务器</text>
+  <text x="64" y="112" fill="#aeb6c2" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16">推荐使用 OpenAPI (API Key) 连接 AstrBot。</text>
+  <rect x="64" y="150" width="792" height="320" rx="18" fill="#111315" stroke="#343941"/>
+  <text x="92" y="195" fill="#ff2d6f" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="17" font-weight="700">服务器配置</text>
+  <text x="96" y="238" fill="#dce3ed" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15">服务器地址</text>
+  <rect x="245" y="218" width="560" height="40" rx="20" fill="#0b0c0e" stroke="#313741"/>
+  <text x="268" y="244" fill="#77808d" font-family="Consolas, monospace" font-size="14">http://你的服务器IP:6185</text>
+  <text x="96" y="296" fill="#dce3ed" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15">认证方式</text>
+  <rect x="245" y="276" width="560" height="40" rx="20" fill="#0b0c0e" stroke="#ff2020" stroke-width="4"/>
+  <text x="270" y="302" fill="#ffffff" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15">OpenAPI (API Key)</text>
+  <text x="96" y="354" fill="#dce3ed" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15">API Key</text>
+  <rect x="245" y="334" width="560" height="40" rx="20" fill="#0b0c0e" stroke="#ff2020" stroke-width="4"/>
+  <text x="270" y="360" fill="#ffffff" font-family="Consolas, monospace" font-size="15">abk_********************************</text>
+  <text x="96" y="412" fill="#dce3ed" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="15">WebSocket 地址</text>
+  <rect x="245" y="392" width="560" height="40" rx="20" fill="#0b0c0e" stroke="#313741"/>
+  <text x="270" y="418" fill="#77808d" font-family="Consolas, monospace" font-size="14">留空自动生成, 自定义时填 wss://...</text>
+  <rect x="655" y="464" width="150" height="42" rx="21" fill="#2bcb70"/>
+  <text x="697" y="491" fill="#fff" font-family="Microsoft YaHei, Segoe UI, sans-serif" font-size="16" font-weight="700">测试连接</text>
+</svg>

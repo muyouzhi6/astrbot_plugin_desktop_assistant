@@ -8,9 +8,39 @@
 
 **AstrBot 服务端插件，为桌面悬浮球提供 AI 能力支撑**
 
-[⚡ 快速部署](#-快速部署) · [✨ 核心功能](#-核心功能) · [🔌 附加能力](#-附加能力qq-远程功能) · [🐳 Docker 部署](#-docker-部署指南)
+[⚡ 快速部署](#-快速部署) · [🆕 本次更新](#-本次更新重点) · [✨ 核心功能](#-核心功能) · [🔌 附加能力](#-附加能力qq-远程功能) · [🐳 Docker 部署](#-docker-部署指南)
 
 </div>
+
+---
+
+## 🆕 本次更新重点
+
+### 🐾 桌面客户端新增默认形象：桃桃
+
+新版桌面客户端默认启用 **桃桃** 桌宠形象，这是木有知自己制作的 Q 版桌宠。用户仍然可以切换回传统悬浮球，也可以导入自己的 **CodexPet 兼容宠物包**，实现完全自定义的桌宠形象。
+
+桌宠包需要包含 `pet.json` 和 `spritesheet.webp`。在桌面客户端「设置 → 外观 → 宠物形象 → 添加宠物形象」里导入后，选择对应形象并保存即可。
+
+![桃桃与 CodexPet 自定义形象](docs/images/taotao-codexpet.svg)
+
+### 🔐 适配 OpenAPI (API Key) 连接
+
+本插件已同步适配桌面客户端新增的 **OpenAPI (API Key)** 连接模式。客户端不再必须保存 AstrBot 管理员账号密码，可以直接使用 AstrBot 生成的 `abk_` API Key 连接服务端，聊天、图片/截图附件上传和远控 WebSocket 都会走新的认证链路。
+
+在桌面客户端「设置 → 服务器」中选择 `OpenAPI (API Key)`，填入 API Key 后保存即可。WebSocket 地址通常可以留空，客户端会按服务器地址自动生成；使用反向代理或自定义路径时，再填写完整 `ws://` / `wss://` 地址。
+
+![桌面客户端 OpenAPI 连接配置](docs/images/openapi-client-settings.svg)
+
+### 🗝️ API Key 获取方式
+
+进入 AstrBot 管理面板「设置」，找到「API Key」区域，填写 Key 名称、选择有效期，然后点击「创建 API Key」。建议至少勾选 `chat` 和 `file` 权限：`chat` 用于对话和 WebSocket 远控认证，`file` 用于图片、截图等附件上传。图中也勾选了 `config` 和 `im`，用于保留更多 AstrBot OpenAPI 扩展能力。
+
+![AstrBot 创建 API Key](docs/images/astrbot-api-key-create.svg)
+
+### 🔌 为什么插件也必须同步更新？
+
+OpenAPI 模式不是只改客户端就完事。服务端插件需要识别 `abk_` API Key、校验 AstrBot OpenAPI 权限，并允许远控 WebSocket 复用 API Key；同时客户端通过 `/api/v1/file` 上传截图附件时，插件侧也要保持新协议兼容。请将本插件更新到 `v1.1.5` 或更新版本后，再使用桌面客户端的 OpenAPI 模式。
 
 ---
 
@@ -136,8 +166,13 @@ astrbot plugin install astrbot_plugin_desktop_assistant
 在桌面客户端中：
 1. 右键悬浮球 → 设置
 2. 填写服务器地址：`http://你的服务器IP:6185`
-3. 填写 AstrBot 管理员账号密码
-4. 保存，开始陪伴之旅 🎉
+3. 认证方式推荐选择 `OpenAPI (API Key)`
+4. 到 AstrBot 管理面板「设置 → API Key」创建 API Key，至少勾选 `chat` 和 `file`
+5. 将 `abk_` 开头的完整 API Key 粘贴到桌面客户端并保存
+
+如果你需要兼容旧客户端，也可以继续使用账号密码模式；新版本推荐 OpenAPI (API Key)，远程服务器和 Docker 部署会更稳，截图附件上传也更顺滑。
+
+保存后，桃桃就可以在桌面上开始陪伴你了 🎉
 
 ---
 
@@ -263,7 +298,7 @@ sudo ufw allow 6190/tcp
 |------|----------|
 | 客户端无法连接 | 检查防火墙是否开放 6185 和 6190 端口 |
 | WebSocket 断开 | 检查网络稳定性，客户端会自动重连 |
-| 认证失败 | 确认使用 AstrBot 管理员账号密码 |
+| 认证失败 | OpenAPI 模式确认 API Key 以 `abk_` 开头且包含 `chat` 权限；旧账号密码模式确认使用 AstrBot 管理员账号密码 |
 
 ### 功能问题
 
