@@ -11,6 +11,7 @@
 """
 
 import asyncio
+import hashlib
 import time
 import traceback
 import uuid
@@ -379,13 +380,17 @@ class Main(star.Star):
             import traceback
             traceback.print_exc()
 
-    def _validate_ws_token(self, token: str) -> bool:
+    async def _validate_ws_token(self, token: str) -> bool:
         """验证 WebSocket 连接的 token"""
         if not token:
             return False
         token = token.removeprefix("Bearer ").strip()
         if not token:
             return False
+
+        if token.startswith("abk_"):
+            return await self._validate_openapi_key(token)
+
         if not self._jwt_secret:
             logger.warning("JWT secret 未配置，跳过 WebSocket token 校验")
             return True
@@ -400,6 +405,32 @@ class Main(star.Star):
             return False
         except Exception as e:
             logger.error(f"WebSocket token 校验异常: {e}")
+            return False
+
+    async def _validate_openapi_key(self, raw_key: str) -> bool:
+        """验证 AstrBot OpenAPI API Key，允许 OpenAPI 模式复用远控 WebSocket。"""
+        try:
+            db = self.context.get_db()
+            key_hash = hashlib.pbkdf2_hmac(
+                "sha256",
+                raw_key.encode("utf-8"),
+                b"astrbot_api_key",
+                100_000,
+            ).hex()
+            api_key = await db.get_active_api_key_by_hash(key_hash)
+            if not api_key:
+                logger.warning("WebSocket OpenAPI API Key 无效或已过期")
+                return False
+
+            scopes = api_key.scopes if isinstance(api_key.scopes, list) else ["chat", "config", "file", "im"]
+            if "*" not in scopes and "chat" not in scopes:
+                logger.warning("WebSocket OpenAPI API Key 缺少 chat scope")
+                return False
+
+            await db.touch_api_key(api_key.key_id)
+            return True
+        except Exception as e:
+            logger.error(f"WebSocket OpenAPI API Key 校验异常: {e}")
             return False
     
     # ========================================================================

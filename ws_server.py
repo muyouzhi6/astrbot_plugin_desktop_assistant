@@ -266,7 +266,10 @@ class StandaloneWebSocketServer:
         
         if self._token_validator:
             try:
-                if not self._token_validator(token):
+                validation_result = self._token_validator(token)
+                if asyncio.iscoroutine(validation_result):
+                    validation_result = await validation_result
+                if not validation_result:
                     logger.warning("WebSocket 连接拒绝: token 无效或过期")
                     await websocket.close(1008, "Invalid token")
                     return
